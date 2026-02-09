@@ -1,0 +1,17 @@
+[package]
+name = "kren-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Node.js bindings for KREN zero-copy IPC"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+kren-core.workspace = true
+napi = { version = "2", features = ["default"] }
+napi-derive = "2"
+
+[build-dependencies]
+napi-build = "2"

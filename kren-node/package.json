@@ -1,0 +1,42 @@
+{
+  "name": "kren",
+  "version": "0.1.0",
+  "description": "Zero-copy shared memory IPC library - Node.js bindings",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "author": "KREN Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/kren"
+  },
+  "keywords": [
+    "ipc",
+    "shared-memory",
+    "zero-copy",
+    "ring-buffer",
+    "low-latency",
+    "napi-rs",
+    "rust"
+  ],
+  "napi": {
+    "name": "kren",
+    "triples": {
+      "defaults": true,
+      "additional": []
+    }
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "node test/test.js"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "engines": {
+    "node": ">= 14"
+  }
+}

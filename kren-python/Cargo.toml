@@ -1,0 +1,14 @@
+[package]
+name = "kren-python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Python bindings for KREN zero-copy IPC"
+
+[lib]
+name = "kren"
+crate-type = ["cdylib"]
+
+[dependencies]
+kren-core.workspace = true
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py311"] }

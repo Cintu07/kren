@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+    "kren-core",
+    "kren-python",
+    "kren-node",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["KREN Contributors"]
+repository = "https://github.com/Cintu07/kren"
+description = "Zero-copy shared memory IPC library"
+
+[workspace.dependencies]
+kren-core = { path = "kren-core" }
+thiserror = "1.0"
