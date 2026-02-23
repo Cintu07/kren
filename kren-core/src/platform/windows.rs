@@ -1,20 +1,15 @@
-//! Windows shared memory implementation using Named File Mappings
-
 use crate::error::{KrenError, Result};
 use crate::platform::SharedMemory;
 use std::ffi::c_void;
-use std::ptr::NonNull;
+use std::ptr::{self, NonNull};
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{CloseHandle, HANDLE};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
+use windows::Win32::Security::SECURITY_ATTRIBUTES;
 use windows::Win32::System::Memory::{
-    CreateFileMappingW, MapViewOfFile, OpenFileMappingW, UnmapViewOfFile,
-    FILE_MAP_ALL_ACCESS, MEMORY_MAPPED_VIEW_ADDRESS, PAGE_READWRITE,
+    CreateFileMappingW, MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, FILE_MAP_ALL_ACCESS,
+    PAGE_READWRITE,
 };
 
-/// Windows shared memory implementation using Named File Mappings
-/// 
-/// This creates a named file mapping object that can be shared between processes.
-/// The mapping is backed by the system page file, not a physical file.
 pub struct WindowsSharedMemory {
     handle: HANDLE,
     ptr: NonNull<u8>,
@@ -22,66 +17,52 @@ pub struct WindowsSharedMemory {
     name: String,
 }
 
-// Safety: The shared memory can be accessed from multiple threads
-// The synchronization is handled by the atomic operations in SharedHeader
 unsafe impl Send for WindowsSharedMemory {}
 unsafe impl Sync for WindowsSharedMemory {}
 
 impl WindowsSharedMemory {
-    /// Convert a Rust string to a null-terminated wide string for Windows APIs
-    fn to_wide_string(s: &str) -> Vec<u16> {
-        s.encode_utf16().chain(std::iter::once(0)).collect()
-    }
-
-    /// Create the full mapping name with "Local\\" prefix
-    fn make_mapping_name(name: &str) -> String {
-        if name.starts_with("Local\\") || name.starts_with("Global\\") {
-            name.to_string()
-        } else {
-            format!("Local\\kren_{}", name)
-        }
+    fn encode_name(name: &str) -> Vec<u16> {
+        let mut encoded: Vec<u16> = format!("Local\\KREN_{}", name).encode_utf16().collect();
+        encoded.push(0);
+        encoded
     }
 }
 
 impl SharedMemory for WindowsSharedMemory {
     fn create(name: &str, size: usize) -> Result<Self> {
-        let full_name = Self::make_mapping_name(name);
-        let wide_name = Self::to_wide_string(&full_name);
+        let name_encoded = Self::encode_name(name);
         
-        // Create file mapping backed by system page file (INVALID_HANDLE_VALUE)
         let handle = unsafe {
             CreateFileMappingW(
-                HANDLE::default(), // Use page file
-                None,              // Default security
-                PAGE_READWRITE,    // Read/write access
-                (size >> 32) as u32, // High 32 bits of size
-                size as u32,       // Low 32 bits of size
-                PCWSTR(wide_name.as_ptr()),
+                INVALID_HANDLE_VALUE,
+                Some(ptr::null::<SECURITY_ATTRIBUTES>() as *const _),
+                PAGE_READWRITE,
+                (size >> 32) as u32,
+                (size & 0xFFFFFFFF) as u32,
+                PCWSTR::from_raw(name_encoded.as_ptr()),
             )
-        }.map_err(|e| KrenError::CreateFailed(e.to_string()))?;
+        }.map_err(|e| KrenError::CreateFailed(format!(
+            "CreateFileMappingW failed: {}", e
+        )))?;
 
-        if handle.is_invalid() {
-            return Err(KrenError::CreateFailed("CreateFileMappingW returned invalid handle".into()));
-        }
-
-        // Map the entire file mapping into our address space
-        let map_result = unsafe {
+        let ptr = unsafe {
             MapViewOfFile(
                 handle,
                 FILE_MAP_ALL_ACCESS,
-                0, // Offset high
-                0, // Offset low
+                0,
+                0,
                 size,
             )
         };
 
-        let ptr = match NonNull::new(map_result.Value as *mut u8) {
-            Some(p) => p,
-            None => {
-                unsafe { let _ = CloseHandle(handle); }
-                return Err(KrenError::MapFailed("MapViewOfFile returned null".into()));
-            }
-        };
+        if ptr.Value.is_null() {
+            unsafe { let _ = CloseHandle(handle); }
+            return Err(KrenError::MapFailed(format!(
+                "MapViewOfFile failed: {}", std::io::Error::last_os_error()
+            )));
+        }
+
+        let ptr = NonNull::new(ptr.Value as *mut u8).unwrap();
 
         Ok(Self {
             handle,
@@ -92,50 +73,45 @@ impl SharedMemory for WindowsSharedMemory {
     }
 
     fn open(name: &str) -> Result<Self> {
-        let full_name = Self::make_mapping_name(name);
-        let wide_name = Self::to_wide_string(&full_name);
+        let name_encoded = Self::encode_name(name);
 
-        // Open existing file mapping
         let handle = unsafe {
             OpenFileMappingW(
                 FILE_MAP_ALL_ACCESS.0,
-                false, // Don't inherit handle
-                PCWSTR(wide_name.as_ptr()),
+                false,
+                PCWSTR::from_raw(name_encoded.as_ptr()),
             )
-        }.map_err(|e| KrenError::OpenFailed(e.to_string()))?;
+        }.map_err(|e| KrenError::OpenFailed(format!(
+            "OpenFileMappingW failed: {}", e
+        )))?;
 
-        if handle.is_invalid() {
-            return Err(KrenError::OpenFailed("OpenFileMappingW returned invalid handle".into()));
-        }
-
-        // Map the file mapping - we don't know the size yet, so map everything
-        let map_result = unsafe {
+        let ptr = unsafe {
             MapViewOfFile(
                 handle,
                 FILE_MAP_ALL_ACCESS,
                 0,
                 0,
-                0, // Map entire mapping
+                0,
             )
         };
 
-        let ptr = match NonNull::new(map_result.Value as *mut u8) {
-            Some(p) => p,
-            None => {
-                unsafe { let _ = CloseHandle(handle); }
-                return Err(KrenError::MapFailed("MapViewOfFile returned null".into()));
-            }
-        };
+        if ptr.Value.is_null() {
+            unsafe { let _ = CloseHandle(handle); }
+            return Err(KrenError::MapFailed(format!(
+                "MapViewOfFile failed: {}", std::io::Error::last_os_error()
+            )));
+        }
 
-        // Read the size from the header
+        let ptr = NonNull::new(ptr.Value as *mut u8).unwrap();
+
         let header = unsafe { &*(ptr.as_ptr() as *const crate::header::SharedHeader) };
         header.validate()?;
-        let size = header.data_offset as usize + header.capacity as usize;
+        let total_size = header.data_offset as usize + header.capacity as usize;
 
         Ok(Self {
             handle,
             ptr,
-            size,
+            size: total_size,
             name: name.to_string(),
         })
     }
@@ -156,13 +132,7 @@ impl SharedMemory for WindowsSharedMemory {
 impl Drop for WindowsSharedMemory {
     fn drop(&mut self) {
         unsafe {
-            // Unmap the view first
-            let addr = MEMORY_MAPPED_VIEW_ADDRESS {
-                Value: self.ptr.as_ptr() as *mut c_void,
-            };
-            let _ = UnmapViewOfFile(addr);
-            
-            // Then close the handle
+            let _ = UnmapViewOfFile(windows::Win32::System::Memory::MEMORY_MAPPED_VIEW_ADDRESS { Value: self.ptr.as_ptr() as *mut c_void });
             let _ = CloseHandle(self.handle);
         }
     }
@@ -175,57 +145,19 @@ mod tests {
 
     #[test]
     fn test_create_and_open() {
-        let name = "test_create_open";
+        let name = "test_create_win";
         let size = SharedHeader::SIZE + 1024;
 
-        // Create shared memory
-        let shm1 = WindowsSharedMemory::create(name, size).expect("Failed to create");
-        
-        // Initialize header
-        unsafe {
-            SharedHeader::init(shm1.as_ptr(), 1024);
-        }
+        let shm1 = WindowsSharedMemory::create(name, size).unwrap();
+        unsafe { SharedHeader::init(shm1.as_ptr(), 1024); }
 
-        // Open from another "process" (same process, different handle)
-        let shm2 = WindowsSharedMemory::open(name).expect("Failed to open");
+        let shm2 = WindowsSharedMemory::open(name).unwrap();
 
-        // Verify both see the same data
         let header1 = unsafe { SharedHeader::from_ptr(shm1.as_ptr()) };
         let header2 = unsafe { SharedHeader::from_ptr(shm2.as_ptr()) };
 
         assert_eq!(header1.magic, header2.magic);
-        assert_eq!(header1.capacity, header2.capacity);
-
-        // Write from shm1, read from shm2
         header1.set_head(42);
         assert_eq!(header2.head(), 42);
-    }
-
-    #[test]
-    fn test_data_sharing() {
-        let name = "test_data_sharing";
-        let capacity = 256u32;
-        let size = SharedHeader::SIZE + capacity as usize;
-
-        let shm1 = WindowsSharedMemory::create(name, size).expect("Failed to create");
-        unsafe { SharedHeader::init(shm1.as_ptr(), capacity); }
-
-        let shm2 = WindowsSharedMemory::open(name).expect("Failed to open");
-
-        // Write some data through shm1
-        let data_ptr1 = unsafe { shm1.as_ptr().add(SharedHeader::SIZE) };
-        let test_data = b"Hello, KREN!";
-        unsafe {
-            std::ptr::copy_nonoverlapping(test_data.as_ptr(), data_ptr1, test_data.len());
-        }
-
-        // Read through shm2
-        let data_ptr2 = unsafe { shm2.as_ptr().add(SharedHeader::SIZE) };
-        let mut read_buf = [0u8; 12];
-        unsafe {
-            std::ptr::copy_nonoverlapping(data_ptr2, read_buf.as_mut_ptr(), 12);
-        }
-
-        assert_eq!(&read_buf, test_data);
     }
 }

@@ -38,5 +38,10 @@
   },
   "engines": {
     "node": ">= 14"
+  },
+  "optionalDependencies": {
+    "kren-win32-x64-msvc": "0.1.0",
+    "kren-darwin-x64": "0.1.0",
+    "kren-linux-x64-gnu": "0.1.0"
   }
 }

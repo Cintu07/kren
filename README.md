@@ -1,38 +1,24 @@
 # KREN
 
-<p align="center">
-  <img src="docs/logo.png" alt="KREN Logo" width="200"/>
-</p>
+Zero-Copy Shared Memory IPC
 
-<p align="center">
-  <strong>Zero-Copy Shared Memory IPC</strong>
-</p>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#performance">Performance</a> •
-  <a href="#api">API</a>
-</p>
-
----
-
-**KREN** is a high-performance, cross-language Inter-Process Communication (IPC) library written in Rust. It bypasses standard OS networking (TCP/HTTP) and serialization (JSON/Protobuf) by establishing a direct shared memory link between processes.
+KREN is a fast, cross-language Inter-Process Communication (IPC) library written in Rust. It does not use OS networking like TCP or HTTP and avoids serialization like JSON or Protobuf. Instead, it creates a direct shared memory link between processes.
 
 ## Features
 
-- 🚀 **Zero-Copy Transfers** - Data is written once, read directly
-- ⚡ **Nanosecond Latency** - 102ns for 64B messages (benchmarked)
-- 🔒 **Lock-Free** - SPSC ring buffer with atomic synchronization
-- 🌍 **Cross-Language** - Native bindings for Python and Node.js
-- 💪 **Battle-Tested** - 7 stress tests, 100K+ message validation
-- 🪟 **Windows** - Named File Mappings (CreateFileMappingW)
-- 🐧 **Linux/macOS** - POSIX shared memory (shm_open/mmap)
+* Zero-Copy Transfers: Data is written once and read directly.
+* Low Latency: 102ns for 64B messages measured.
+* Lock-Free: Uses a Single-Producer Single-Consumer ring buffer with atomic synchronization.
+* Cross-Language: Native bindings for Python and Node.js.
+* Battle-Tested: Passes stress tests and 100K message validation.
+* Windows: Uses Named File Mappings (CreateFileMappingW).
+* Linux and macOS: Uses POSIX shared memory (shm_open and mmap).
 
 ## Installation
 
 ### Rust
+
+Add this to your Cargo.toml:
 
 ```toml
 [dependencies]
@@ -53,28 +39,22 @@ npm install kren
 
 ## Quick Start
 
-### Python → Node.js Communication
+### Python to Node.js Communication
 
 **writer.py**
 ```python
 import kren
 
-# Create a channel with 1MB buffer
 writer = kren.Writer("my_channel", 1024 * 1024)
-
-# Write data
 writer.write(b"Hello from Python!")
-print(f"Written! Available space: {writer.available}")
+print(f"Written. Available space: {writer.available}")
 ```
 
 **reader.js**
 ```javascript
 const kren = require('kren');
 
-// Connect to the channel
 const reader = new kren.Reader("my_channel");
-
-// Read data
 const data = reader.read();
 console.log(`Received: ${data.toString()}`);
 ```
@@ -84,47 +64,29 @@ console.log(`Received: ${data.toString()}`);
 ```rust
 use kren_core::{KrenWriter, KrenReader};
 
-// Process A: Create writer
-let mut writer = KrenWriter::create("my_channel", 4096)?;
-writer.write(b"Hello, World!")?;
+// Process A
+let mut writer = KrenWriter::create("my_channel", 4096).unwrap();
+writer.write(b"Hello, World!").unwrap();
 
-// Process B: Connect reader
-let mut reader = KrenReader::connect("my_channel")?;
-let data = reader.read()?;
+// Process B
+let mut reader = KrenReader::connect("my_channel").unwrap();
+let data = reader.read().unwrap();
 assert_eq!(data, b"Hello, World!");
 ```
 
 ## Architecture
 
-```
-┌─────────────────┐                     ┌─────────────────┐
-│    Process A    │                     │    Process B    │
-│   (Python AI)   │                     │  (Node.js API)  │
-├─────────────────┤                     ├─────────────────┤
-│  KrenWriter     │                     │  KrenReader     │
-│  ┌───────────┐  │                     │  ┌───────────┐  │
-│  │  write()  │  │                     │  │  read()   │  │
-│  └─────┬─────┘  │                     │  └─────▲─────┘  │
-└────────┼────────┘                     └────────┼────────┘
-         │                                       │
-         │         ┌───────────────────┐         │
-         └────────►│   Shared Memory   │◄────────┘
-                   │  ┌─────────────┐  │
-                   │  │ Ring Buffer │  │
-                   │  │ [H]----[T]  │  │
-                   │  └─────────────┘  │
-                   └───────────────────┘
-```
+Process A (like Python) and Process B (like Node.js) talk through a shared memory segment. KrenWriter writes data to the memory. KrenReader reads data from the memory. They use a ring buffer managed by atomic head and tail pointers.
 
 ## Performance (Measured)
 
 | Message Size | Latency | Throughput |
 |-------------|---------|------------|
-| 64 bytes | **102 ns** | 9.7M ops/sec |
-| 1 KB | **189 ns** | 5.2M ops/sec |
-| 64 KB | **5.6 μs** | 11 GB/s |
+| 64 bytes | 102 ns | 9.7M ops/sec |
+| 1 KB | 189 ns | 5.2M ops/sec |
+| 64 KB | 5.6 μs | 11 GB/s |
 
-*Benchmarks measured on Windows, Rust 1.93, release mode. Run `cargo test --release --test bench -- --nocapture` to reproduce.*
+Benchmarks were measured on Windows with Rust 1.93 in release mode. Run `cargo test --release --test bench -- --nocapture` to reproduce.
 
 ## API Reference
 
@@ -142,16 +104,15 @@ assert_eq!(data, b"Hello, World!");
 | Method | Description |
 |--------|-------------|
 | `Reader(name)` | Connect to existing channel |
-| `read()` | Read next message (blocks conceptually) |
-| `try_read()` | Non-blocking read, returns None/null if empty |
-| `writer_closed` | Check if writer has disconnected |
+| `read()` | Read next message |
+| `try_read()` | Non-blocking read, returns None or null if empty |
+| `writer_closed` | Check if writer disconnected |
 | `available` | Data available in bytes |
 | `name` | Channel identifier |
 
 ## Building from Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/Cintu07/kren
 cd kren
 
@@ -172,4 +133,4 @@ npm test
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License. See LICENSE for details.
