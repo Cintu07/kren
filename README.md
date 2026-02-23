@@ -34,7 +34,7 @@ pip install kren
 ### Node.js
 
 ```bash
-npm install kren
+npm install @pawanxz/kren
 ```
 
 ## Quick Start
@@ -52,7 +52,7 @@ print(f"Written. Available space: {writer.available}")
 
 **reader.js**
 ```javascript
-const kren = require('kren');
+const kren = require('@pawanxz/kren');
 
 const reader = new kren.Reader("my_channel");
 const data = reader.read();

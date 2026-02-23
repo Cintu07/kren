@@ -1,5 +1,5 @@
 {
-  "name": "kren",
+  "name": "@pawanxz/kren",
   "version": "0.1.0",
   "description": "Zero-copy shared memory IPC library - Node.js bindings",
   "main": "index.js",
@@ -40,8 +40,8 @@
     "node": ">= 14"
   },
   "optionalDependencies": {
-    "kren-win32-x64-msvc": "0.1.0",
-    "kren-darwin-x64": "0.1.0",
-    "kren-linux-x64-gnu": "0.1.0"
+    "@pawanxz/kren-win32-x64-msvc": "0.1.0",
+    "@pawanxz/kren-darwin-x64": "0.1.0",
+    "@pawanxz/kren-linux-x64-gnu": "0.1.0"
   }
 }
