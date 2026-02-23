@@ -105,8 +105,8 @@ Benchmarks were measured on Windows with Rust 1.93 in release mode. Run `cargo t
 |--------|-------------|
 | `Reader(name)` | Connect to existing channel |
 | `read()` | Read next message |
-| `try_read()` | Non-blocking read, returns None or null if empty |
-| `writer_closed` | Check if writer disconnected |
+| `tryRead()` (JS) / `try_read()` | Non-blocking read, returns None or null if empty |
+| `writerClosed` (JS) / `writer_closed` | Check if writer disconnected |
 | `available` | Data available in bytes |
 | `name` | Channel identifier |
 
