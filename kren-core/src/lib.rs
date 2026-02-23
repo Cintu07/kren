@@ -30,6 +30,10 @@ pub use buffer::RingBuffer;
 #[cfg(windows)]
 pub use platform::WindowsSharedMemory;
 
+#[cfg(unix)]
+pub use platform::UnixSharedMemory;
+
+pub use platform::PlatformShm;
 use platform::SharedMemory;
 
 /// Writer endpoint for a KREN channel
@@ -37,7 +41,7 @@ use platform::SharedMemory;
 /// The writer creates the shared memory segment and writes data to the ring buffer.
 /// Only one writer should exist per channel (Single-Producer constraint).
 pub struct KrenWriter {
-    shm: WindowsSharedMemory,
+    shm: PlatformShm,
     buffer: RingBuffer,
 }
 
@@ -56,7 +60,7 @@ impl KrenWriter {
         }
 
         let total_size = SharedHeader::SIZE + capacity;
-        let shm = WindowsSharedMemory::create(name, total_size)?;
+        let shm = PlatformShm::create(name, total_size)?;
 
         // Initialize the header
         let header = unsafe { SharedHeader::init(shm.as_ptr(), capacity as u32) };
@@ -103,7 +107,7 @@ impl Drop for KrenWriter {
 /// The reader connects to an existing shared memory segment and reads data.
 /// Only one reader should exist per channel (Single-Consumer constraint).
 pub struct KrenReader {
-    shm: WindowsSharedMemory,
+    shm: PlatformShm,
     buffer: RingBuffer,
 }
 
@@ -116,7 +120,7 @@ impl KrenReader {
     /// # Returns
     /// A new `KrenReader` instance
     pub fn connect(name: &str) -> Result<Self> {
-        let shm = WindowsSharedMemory::open(name)?;
+        let shm = PlatformShm::open(name)?;
         
         let header = unsafe { SharedHeader::from_ptr(shm.as_ptr()) };
         header.validate()?;

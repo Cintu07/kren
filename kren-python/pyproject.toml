@@ -29,8 +29,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/kren"
-Repository = "https://github.com/yourusername/kren"
+Homepage = "https://github.com/Cintu07/kren"
+Repository = "https://github.com/Cintu07/kren"
 
 [tool.maturin]
 features = ["pyo3/extension-module", "pyo3/abi3-py311"]

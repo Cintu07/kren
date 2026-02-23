@@ -3,8 +3,14 @@
 #[cfg(windows)]
 mod windows;
 
+#[cfg(unix)]
+mod unix;
+
 #[cfg(windows)]
 pub use windows::*;
+
+#[cfg(unix)]
+pub use unix::*;
 
 use crate::error::Result;
 
@@ -25,3 +31,10 @@ pub trait SharedMemory: Sized {
     /// Get the name of the shared memory segment
     fn name(&self) -> &str;
 }
+
+/// Platform-specific shared memory type alias
+#[cfg(windows)]
+pub type PlatformShm = WindowsSharedMemory;
+
+#[cfg(unix)]
+pub type PlatformShm = UnixSharedMemory;

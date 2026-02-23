@@ -15,5 +15,9 @@ windows = { version = "0.58", features = [
     "Win32_Security",
 ] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 rand = "0.8"
+
